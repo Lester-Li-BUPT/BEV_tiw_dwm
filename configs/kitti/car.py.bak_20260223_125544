@@ -1,0 +1,104 @@
+_base_ = '../default_runtime.py'
+
+# -------------------- basic --------------------
+category_name = 'Car'
+data_dir = '/home/lishengjie/data/cxtrack/KITTI_tracking/training'
+
+point_cloud_range = [-4.8, -4.8, -1.5, 4.8, 4.8, 1.5]
+batch_size = 128
+
+# make sure custom modules are registered
+custom_imports = dict(
+    imports=['models'],
+    allow_failed_imports=False
+)
+
+# -------------------- model --------------------
+model = dict(
+    type='BEVTrack',
+    backbone=dict(
+        type='VoxelNet',
+        point_cloud_range=point_cloud_range,
+        voxel_size=[0.075, 0.075, 0.15],
+        grid_size=[21, 128, 128],
+    ),
+    fuser=dict(type='BEVFuser'),
+    head=dict(type='SimpleHead'),
+
+    use_dmw=False,     # 不开 DMW
+    use_tiw=True,      # 开 TIW
+
+    cfg=dict(point_cloud_range=point_cloud_range),
+)
+
+# -------------------- dataset --------------------
+train_dataset = dict(
+    type='TrainSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Train',
+        category_name=category_name,
+        preloading=True,
+        preload_offset=10
+    ),
+    cfg=dict(
+        num_candidates=6,
+        target_thr=None,
+        search_thr=4,
+        point_cloud_range=point_cloud_range,
+        time_flip=True,
+        flip=True,
+    )
+)
+
+test_dataset = dict(
+    type='TestSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Test',
+        category_name=category_name,
+        preloading=False,
+        preload_offset=-1
+    ),
+)
+
+train_dataloader = dict(
+    dataset=train_dataset,
+    batch_size=batch_size,
+    num_workers=8,
+    persistent_workers=True,
+    drop_last=True,
+    sampler=dict(type='DefaultSampler', shuffle=True)
+)
+
+val_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+test_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+# -------------------- hooks --------------------
+default_hooks = dict(
+    checkpoint=dict(
+        type='CheckpointHook',
+        interval=1,
+        save_last=True,
+        max_keep_ckpts=1,
+        save_best='precision',   # 你这里是 tracking，原来就是 precision 更合理；mAP 常常不存在会报错
+        rule='greater',
+    )
+)

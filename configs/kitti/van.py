@@ -1,0 +1,141 @@
+_base_ = '../default_runtime.py'
+
+# KITTI tracking training root (must contain velodyne/ label_02/ calib/)
+data_dir = '/home/lishengjie/data/cxtrack/KITTI_tracking/training'
+category_name = 'Van'
+
+# Van 样本比 Car 少一些，batch 太大容易波动；4090 也够跑
+batch_size = 96
+
+# ⚠️ 必须和 grid_size=[21,128,128] + voxel_size=[0.075,0.075,0.15] 保持一致
+point_cloud_range = [-4.8, -4.8, -1.5, 4.8, 4.8, 1.5]
+
+model = dict(
+    type='BEVTrack',
+    backbone=dict(
+        type='VoxelNet',
+        point_cloud_range=point_cloud_range,
+        voxel_size=[0.075, 0.075, 0.15],
+        grid_size=[21, 128, 128],
+    ),
+    fuser=dict(type='BEVFuser'),
+    head=dict(type='SimpleHead'),
+
+    # ✅ 全开：TIW + DMW
+    use_dmw=True,
+    dmw=dict(
+        type='DMWModule',
+        feat_dim=128,
+        hidden=256,
+        lambda_motion=1.6,
+        lambda_feat=0.2,
+        per_dof_weight=True,
+        init_w_bias=-3.0,
+    ),
+
+    use_tiw=True,
+    tiw=dict(
+        type='TIWModule',
+        feat_dim=128,
+        L=5,
+        alpha=1.0,
+        beta=0.5,
+        sigma=1.0,
+        use_delta_norm=True,
+    ),
+
+    cfg=dict(point_cloud_range=point_cloud_range),
+)
+
+train_dataset = dict(
+    type='TrainSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Train',
+        category_name=category_name,
+        # ✅ 不预加载：不生成 preload_kitti_*.dat，省盘省事
+        preloading=False,
+        preload_offset=10,
+    ),
+    cfg=dict(
+        # “同上”风格：更抗丢、更稳（success 优先）
+        num_candidates=12,
+        search_thr=7,
+        target_thr=10,
+
+        point_cloud_range=point_cloud_range,
+        time_flip=True,
+        flip=True,
+    ),
+)
+
+test_dataset = dict(
+    type='TestSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Test',
+        category_name=category_name,
+        preloading=False,
+        preload_offset=-1,
+    ),
+)
+
+train_dataloader = dict(
+    dataset=train_dataset,
+    batch_size=batch_size,
+    num_workers=8,
+    persistent_workers=True,
+    drop_last=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    collate_fn=dict(type='pseudo_collate'),
+)
+
+val_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+test_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+default_hooks = dict(
+    checkpoint=dict(
+        type='CheckpointHook',
+        interval=1,
+        save_last=True,
+        max_keep_ckpts=1,
+        save_best='success',
+        rule='greater',
+    )
+)
+
+# =========================
+# Stabilization patch
+# =========================
+
+# 1) Clip gradients to reduce large grad_norm oscillations
+optim_wrapper = dict(
+    clip_grad=dict(max_norm=35.0, norm_type=2)
+)
+
+# 2) LR scheduler
+#    如果你是从 0 开训，建议 milestones=[30]；
+#    如果你是从 200+ 续训，milestones=[210,260,320] 更合适。
+param_scheduler = [
+    dict(type='MultiStepLR', by_epoch=True, milestones=[210, 260, 320], gamma=0.1),
+]
+
+# 3) Ensure enough epochs + validate every epoch
+train_cfg = dict(by_epoch=True, max_epochs=400, val_interval=1)

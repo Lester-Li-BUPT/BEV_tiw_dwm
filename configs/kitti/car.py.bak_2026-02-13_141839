@@ -1,0 +1,237 @@
+category_name = 'Car'
+data_dir = '/home/lishengjie/data/cxtrack/KITTI_tracking/training'
+# Data directory and category
+# Point cloud range
+point_cloud_range = [-4.8, -4.8, -1.5, 4.8, 4.8, 1.5]
+
+# Model config
+batch_size = 128  # Consider increasing batch size
+learning_rate = 1e-4  # Adjust learning rate if batch size is increased
+
+model = dict(
+    type='BEVTrack',
+    backbone=dict(
+        type='VoxelNet',
+        point_cloud_range=point_cloud_range,
+        voxel_size=[0.075, 0.075, 0.15],
+        grid_size=[21, 128, 128],
+    ),
+    fuser=dict(type='BEVFuser'),
+    head=dict(type='SimpleHead'),
+    
+    # Disable DMW
+    use_dmw=False,  # DMW is turned off
+
+    use_tiw=True,  # Keep TIW enabled for temporal information warping
+    cfg=dict(point_cloud_range=point_cloud_range),
+)
+
+# Data augmentation strategies
+train_dataset = dict(
+    type='TrainSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Train',
+        category_name=category_name,
+        preloading=True,
+        preload_offset=10
+    ),
+    config=dict(
+        num_candidates=6,  # Increase to improve tracking robustness
+        time_flip=True,
+        flip=True,
+        crop=True,  # Add cropping as augmentation
+        rotation=True,  # Add rotation as augmentation
+    )
+)
+
+# Test dataset configuration
+test_dataset = dict(
+    type='TestSampler',
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Test',
+        category_name=category_name,
+        preloading=False,
+        preload_offset=-1
+    ),
+)
+
+
+# Checkpoint and lr scheduler
+# Visualizer (required by train.py)
+
+default_hooks = dict(
+    checkpoint=dict(
+        type='CheckpointHook',
+        interval=1,
+        save_last=True,
+        max_keep_ckpts=1,
+        save_best='mAP',  # Change to mAP
+        rule='greater',
+    )
+)
+
+lr_scheduler = dict(
+    type='CosineAnnealingLR',
+    T_max=100,
+    eta_min=1e-6
+)
+
+train_dataloader = dict(
+    dataset=train_dataset,
+    batch_size=batch_size,
+    num_workers=8,  # Increase workers
+    persistent_workers=True,
+    drop_last=True,
+    sampler=dict(type='DefaultSampler', shuffle=True)
+)
+
+val_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+# Test dataset configuration
+
+# Environment config (required by train.py)
+env_cfg = dict(
+    cudnn_benchmark=False,
+    mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
+    dist_cfg=dict(backend='nccl'),
+)
+
+# Visualizer (required by train.py)
+visualizer = dict(
+    type='Visualizer',
+    vis_backends=[dict(type='LocalVisBackend')],
+    name='visualizer'
+)
+
+# Environment config (required by train.py)
+env_cfg = dict(
+    cudnn_benchmark=False,
+    mp_cfg=dict(mp_start_method='fork', opencv_num_threads=0),
+    dist_cfg=dict(backend='nccl'),
+)
+
+# Training/Validation/Test loops (required by train.py)
+train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=100, val_interval=1)
+val_cfg = dict(type='ValLoop')
+test_cfg = dict(type='TestLoop')
+
+# Optimizer (required by train.py)
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(type='AdamW', lr=1e-4, weight_decay=1e-2),
+    clip_grad=dict(max_norm=35, norm_type=2)
+)
+
+# Force import custom modules so BEVTrack is registered
+
+# Force import custom modules so BEVTrack is registered
+custom_imports = dict(
+    imports=['models.BEVTrack'],
+    allow_failed_imports=False
+)
+
+train_dataloader = dict(
+    dataset=train_dataset,
+    batch_size=batch_size,
+    num_workers=8,
+    persistent_workers=True,
+    drop_last=True,
+    sampler=dict(type='DefaultSampler', shuffle=True)
+)
+
+val_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+test_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+# ---- Override datasets (flat kwargs, no cfg/config) ----
+train_dataset = dict(
+    type='TrainSampler',
+
+    # these are passed directly to TrainSampler.__init__
+    num_candidates=6,
+    target_thr=None,
+    search_thr=4,
+    point_cloud_range=point_cloud_range,
+    time_flip=True,
+    flip=True,
+
+    # underlying dataset
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Train',
+        category_name=category_name,
+        preloading=True,
+        preload_offset=10
+    )
+)
+
+test_dataset = dict(
+    type='TestSampler',
+
+    # passed directly to TestSampler.__init__
+    target_thr=None,
+    search_thr=4,
+    point_cloud_range=point_cloud_range,
+
+    dataset=dict(
+        type='KittiDataset',
+        path=data_dir,
+        split='Test',
+        category_name=category_name,
+        preloading=False,
+        preload_offset=-1
+    )
+)
+
+train_dataloader = dict(
+    dataset=train_dataset,
+    batch_size=batch_size,
+    num_workers=8,
+    persistent_workers=True,
+    drop_last=True,
+    sampler=dict(type='DefaultSampler', shuffle=True)
+)
+
+val_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
+
+test_dataloader = dict(
+    dataset=test_dataset,
+    batch_size=1,
+    num_workers=4,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    collate_fn=lambda x: x,
+)
