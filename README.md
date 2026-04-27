@@ -385,21 +385,8 @@ The combination of TIW and DWM improves both tracking continuity and localizatio
 
 ---
 
-## 14. Team
 
-This project is developed by the undergraduate research team focusing on 3D perception, autonomous driving, and intelligent transportation.
-
-| Name | Role | Responsibility |
-|---|---|---|
-| 李国玉 | Project Lead | Overall planning, algorithm design, model implementation, experiment analysis |
-| 陈赛 | Member | Model development, training optimization, baseline reproduction |
-| 何海洋 | Member | Data processing, system testing, experiment validation |
-| 王梓涵 | Member | Material organization, visualization design, presentation support |
-| 李胜杰 | Advisor | Research guidance, technical direction, project supervision |
-
----
-
-## 15. Citation
+## 14. Citation
 
 If this repository is helpful for your research or project, please consider citing it:
 
@@ -414,7 +401,7 @@ If this repository is helpful for your research or project, please consider citi
 
 ---
 
-## 16. Acknowledgements
+## 15. Acknowledgements
 
 This project is built upon prior research in LiDAR-based 3D single object tracking, BEV perception, and autonomous driving. We thank the open-source community for providing valuable datasets, benchmarks, and research codebases.
 
@@ -428,13 +415,13 @@ Representative related topics include:
 
 ---
 
-## 17. License
+## 16. License
 
 This project is released under the MIT License. Please refer to `LICENSE` for more details.
 
 ---
 
-## 18. Contact
+## 17. Contact
 
 For questions, suggestions, or collaboration, please open an issue or contact the project maintainers.
 
